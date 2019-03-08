@@ -54,13 +54,15 @@ namespace BotInADay_Guess
 			var userState = new UserState(dataStore);
 			services.AddSingleton(userState);
 
+			var secretKey = Configuration.GetSection("botFileSecret")?.Value;
+
+			// Loads .bot configuration file and adds a singleton that your Bot can access through dependency injection.
+			var botConfig = BotConfiguration.Load(@".\BotInADay_Guess.bot", secretKey);
+			services.AddSingleton(sp => botConfig);
+			services.AddSingleton(sp => new BotServices(botConfig));
+
 			services.AddBot<BotInADay_GuessBot>(options =>
 			{
-				var secretKey = Configuration.GetSection("botFileSecret")?.Value;
-
-				// Loads .bot configuration file and adds a singleton that your Bot can access through dependency injection.
-				var botConfig = BotConfiguration.Load(@".\BotInADay_Guess.bot", secretKey);
-				services.AddSingleton(sp => botConfig);
 
 				// Retrieve current endpoint.
 				var service = botConfig.Services.FirstOrDefault(s => s.Type == "endpoint" && s.Name == "development");

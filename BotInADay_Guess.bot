@@ -1,23 +1,32 @@
 ﻿{
   "name": "BotInADay_Guess",
-  "services": [
-    {
-      "type": "endpoint",
-      "name": "development",
-      "endpoint": "http://localhost:3978/api/messages",
-      "appId": "",
-      "appPassword": "",
-      "id": "1"
-    },
-    {
-      "type": "endpoint",
-      "name": "production",
-      "endpoint": "https://BotInADay_Guess.azurewebsites.net/api/messages",
-      "appId": "<YOUR APP ID>",
-      "appPassword": "<YOUR APP PASSWORD>",
-      "id": "2"
-    }
-  ],
+	"services": [
+		{
+			"type": "endpoint",
+			"name": "development",
+			"endpoint": "http://localhost:3978/api/messages",
+			"appId": "",
+			"appPassword": "",
+			"id": "1"
+		},
+		{
+			"type": "endpoint",
+			"name": "production",
+			"endpoint": "https://BotInADay_Guess.azurewebsites.net/api/messages",
+			"appId": "<YOUR APP ID>",
+			"appPassword": "<YOUR APP PASSWORD>",
+			"id": "2"
+		},
+		{
+			"type": "luis",
+			"name": "basic-bot-LUIS",
+			"region": "westeurope",
+			"appId": "<Your LUIS App Key>",
+			"authoringKey": "<Your LUIS Authoring Key>",
+			"version": "0.1",
+			"id": "basic-bot-LUIS"
+		}
+	],
   "padlock": "",
   "version": "2.0"
 }
