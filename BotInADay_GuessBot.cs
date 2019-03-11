@@ -1,6 +1,9 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using BotInADay_Guess.Dialogs;
@@ -9,6 +12,8 @@ using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Configuration;
 using Microsoft.Bot.Schema;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace BotInADay_Guess
 {
@@ -32,62 +37,82 @@ namespace BotInADay_Guess
 			dialogs.Add(new GuessDialog(guessStateAccessor, loggerFactory));
 		}
 
-		public async Task OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken = default(CancellationToken))
+	public async Task OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		// Create a dialog context since we're using dialogs
+		var dc = await dialogs.CreateContextAsync(turnContext, cancellationToken);
+
+		if (turnContext.Activity.Type == ActivityTypes.Message)
 		{
-			// Create a dialog context since we're using dialogs
-			var dc = await dialogs.CreateContextAsync(turnContext, cancellationToken);
+			var topIntent = await GetTopIntent(cancellationToken, turnContext);
 
-			if (turnContext.Activity.Type == ActivityTypes.Message)
+			if ("Cancel".Equals(topIntent))
 			{
-				var topIntent = await GetTopIntent(cancellationToken, turnContext);
+				await dc.CancelAllDialogsAsync(cancellationToken);
+				await turnContext.SendActivityAsync("Let's start over. You have my full attention. How can I help?", cancellationToken: cancellationToken);
+			}
 
-				if ("Cancel".Equals(topIntent))
-				{
-					await dc.CancelAllDialogsAsync(cancellationToken);
-					await turnContext.SendActivityAsync("Let's start over. You have my full attention. How can I help?", cancellationToken: cancellationToken);
-				}
+			// if there's a current dialog, let it have control and process the input
+			var dialogResult = await dc.ContinueDialogAsync(cancellationToken);
 
-				// if there's a current dialog, let it have control and process the input
-				var dialogResult = await dc.ContinueDialogAsync(cancellationToken);
+			if (dialogResult.Status == DialogTurnStatus.Complete)
+			{
+				await WelcomeUser(cancellationToken, turnContext.Activity, dc);
+			}
 
 				// user sent us a message. 
 				if (!dc.Context.Responded) // did we send a response yet?
+			{
+				// examine results from active dialog to decide how to act
+				switch (dialogResult.Status)
 				{
-					// examine results from active dialog to decide how to act
-					switch (dialogResult.Status)
+					case DialogTurnStatus.Empty:
+						// there's nothing on the dialog stack
+						// so we must feel responsible for the communication
+						if ("Game" == topIntent || "guess" == (turnContext.Activity.Value as JObject)?.SelectToken("$..command")?.Value<string>())
+						{
+							await dc.BeginDialogAsync(nameof(GuessDialog), cancellationToken: cancellationToken);
+						}
+						else
+						{
+							await turnContext.SendActivityAsync($"You said '{turnContext.Activity.Text}'", cancellationToken: cancellationToken);
+						}
+						break;
+
+					case DialogTurnStatus.Complete:
+						await dc.EndDialogAsync(cancellationToken: cancellationToken);
+						break;
+
+					case DialogTurnStatus.Waiting:
+						break;
+
+					case DialogTurnStatus.Cancelled:
+						break;
+
+					default:
+						await dc.CancelAllDialogsAsync(cancellationToken);
+						break;
+				}
+			}
+		}
+		else if (turnContext.Activity.Type == ActivityTypes.ConversationUpdate)
+		{
+			if (turnContext.Activity.MembersAdded != null)
+			{
+				// Iterate over all new members added to the conversation.
+				foreach (var member in turnContext.Activity.MembersAdded)
+				{
+					// Greet anyone that was not the target (recipient) of this message.
+					if (member.Id != turnContext.Activity.Recipient.Id)
 					{
-						case DialogTurnStatus.Empty:
-							// there's nothing on the dialog stack
-							// so we must feel responsible for the communication
-							if ("Game" == topIntent)
-							{
-								await dc.BeginDialogAsync(nameof(GuessDialog), cancellationToken: cancellationToken);
-							}
-							else
-							{
-								await turnContext.SendActivityAsync($"You said '{turnContext.Activity.Text}'", cancellationToken: cancellationToken);
-							}
-							break;
-
-						case DialogTurnStatus.Complete:
-							await dc.EndDialogAsync(cancellationToken: cancellationToken);
-							break;
-
-						case DialogTurnStatus.Waiting:
-							break;
-
-						case DialogTurnStatus.Cancelled:
-							break;
-
-						default:
-							await dc.CancelAllDialogsAsync(cancellationToken);
-							break;
+						await WelcomeUser(cancellationToken, turnContext.Activity, dc);
 					}
 				}
 			}
-			await conversationState.SaveChangesAsync(turnContext, cancellationToken: cancellationToken);
-			await userState.SaveChangesAsync(turnContext, cancellationToken: cancellationToken);
 		}
+		await conversationState.SaveChangesAsync(turnContext, cancellationToken: cancellationToken);
+		await userState.SaveChangesAsync(turnContext, cancellationToken: cancellationToken);
+	}
 
 		private async Task<string> GetTopIntent(CancellationToken cancellationToken, ITurnContext ctx)
 		{
@@ -99,6 +124,30 @@ namespace BotInADay_Guess
 			var luisResults = await services.Luis.RecognizeAsync(ctx, cancellationToken);
 			var topScoringIntent = luisResults?.GetTopScoringIntent();
 			return topScoringIntent?.intent;
+		}
+
+		private async Task WelcomeUser(CancellationToken cancellationToken, Activity activity, DialogContext dc)
+		{
+			var menuCard = CreateMenuAttachment();
+			var response = activity.CreateReply();
+			response.Attachments = new List<Attachment>() { menuCard };
+			await dc.Context.SendActivityAsync(response, cancellationToken);
+		}
+
+		private Attachment CreateMenuAttachment()
+		{
+			var assembly = typeof(BotInADay_GuessBot).GetTypeInfo().Assembly;
+			string adaptiveCard = null;
+			using (var reader = new StreamReader(assembly.GetManifestResourceStream("BotInADay_Guess.Dialogs.MenuCard.json")))
+			{
+				adaptiveCard = reader.ReadToEnd();
+			}
+
+			return new Attachment()
+			{
+				ContentType = "application/vnd.microsoft.card.adaptive",
+				Content = JsonConvert.DeserializeObject(adaptiveCard),
+			};
 		}
 	}
 }

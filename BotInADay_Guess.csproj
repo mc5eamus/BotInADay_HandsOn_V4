@@ -5,9 +5,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Remove="Dialogs\MenuCard.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="BotInADay_Guess.bot">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Dialogs\MenuCard.json" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,7 +1,6 @@
 ﻿# BotInADay_Guess
 
-This bot is an empty bot skeleton that returns "Hello World" for all requests.
-This bot has been created using [Microsoft Bot Framework][1].
+"Bot in a Day" Project, focusing on [Microsoft Bot Framework v4][1].
 
 # Prerequisites
 - [Visual Studio 2017 15.7][2] or newer installed.
